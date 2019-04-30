@@ -25,20 +25,6 @@ def cache_for_delete(uri):
   from datetime import datetime as time
   redis_client.sadd('cache_for_delete', {'key':uri, 'time':str(time.now())})
 
-def cache_for_serving(uri):
-  key = uri + '.served'
-  served = redis_client.get(key)
-  if served == None:
-    redis_client.set(key, 'no')
-  if served == b'no':
-    redis_client.set(key, 'yes')
-
-def check_cache_for_serving(uri):
-  key = uri + '.served'
-  served = redis_client.get(key)
-  if served == None or served == b'yes':
-    redis_client.delete(key)
-    raise Exception('The file has been served and destroyed')
 
 def save_type(uri, filename):
   key = uri + '.filename'
@@ -87,12 +73,11 @@ def get(phone, name):
   try:
     phone = check_phone(phone)
     key = '{}.{}'.format(phone, name)
-    check_cache_for_serving(key)
     content = redis_client.get(key)
+    if not content:
+      return 'File already served and destroyed'
     filename = get_type(key)
-    if not filename:
-      return 404
-    cache_for_serving(key)
+    
     resp = send_file(io.BytesIO(content), attachment_filename=filename) 
     redis_client.delete(key)
     return resp
