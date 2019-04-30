@@ -1,7 +1,7 @@
 from flask import Flask, request, send_file, flash
 from xiumeteo.base.redis import redis_client
 
-from xiumeteo.base.sms import send_filename, check_phone
+from xiumeteo.base.sms import send_filename, check_phone, check_auth, auth
 import requests
 import random
 import logging
@@ -40,28 +40,34 @@ def type(filename):
   return filename.rsplit('.', 1)[1].lower()
 
 @app.route('/<phone>', methods=['POST'])
-def put(phone='9999471847'):
+def put(phone):
   try:
-    phone = check_phone(phone)
+    code = request.form['code']
+    if not check_auth(phone, code):
+      return 'Auth code is not right, please try again'
+    
     file = request.files['file']
+    if not file:
+      return 'A file must be present'
     if not type(file.filename) in ALLOWED_FILES:
       raise Exception('Invalid filetype ALLOWED:{}'.format(ALLOWED_FILES))
-    # logger.error(file)
-    if not file:
-      return 404
-    filename = '{}-{}'.format(word(), word())
+    
     stream = file.stream.read()
-    # logger.error(filename) 
-    # logger.error(stream) 
     if not stream:
-      return 400
-    key = '{}.{}'.format(phone, filename)
+      return 'Problems reading the file'
+
+    filename = '{}-{}'.format(word(), word())
+    key = '+52{}.{}'.format(phone, filename)
+    
     saved = redis_client.set(key, stream)
+    logger.info(key)
     save_type(key, file.filename)
     if saved:
       cache_for_delete(key)
-      send_filename(phone, filename, request.base_url)
-      return 'OK'
+      # send_filename(phone, filename, request.base_url)
+      return 'You saved a file with name <h1>{}</h1>. You can retrieve your file at <h2>{}/{}<h2><br><h2>WARN THIS IS A SINGLE USE LINK</h2>'. \
+        format(filename, request.base_url, filename)
+  
   except Exception as ex:
     logger.error(ex)
     return str(ex)
@@ -71,8 +77,7 @@ def put(phone='9999471847'):
 @app.route('/<phone>/<name>', methods=['GET'])
 def get(phone, name):
   try:
-    phone = check_phone(phone)
-    key = '{}.{}'.format(phone, name)
+    key = '+52{}.{}'.format(phone, name)
     content = redis_client.get(key)
     if not content:
       return 'File already served and destroyed'
@@ -86,15 +91,21 @@ def get(phone, name):
 
 
 @app.route('/<phone>', methods=['GET'])
-def save(phone):
+def request_form(phone):
   try:
-    check_phone(phone)
+    resp = auth(phone)
+    logger.error(resp)
+    if not resp:
+      return 'Please provide a cell phone number'
+
     return '''
     <!doctype html>
     <title>Upload new File</title>
     <h1>Upload new File</h1>
     <form method=post action='/{}' enctype=multipart/form-data>
     <input type=file name=file>
+    <h2>Enter verification code that we send to your phone</h2>
+    <input type=text name=code>
     <input type=submit value=Upload>
     </form>
     '''.format(phone)
