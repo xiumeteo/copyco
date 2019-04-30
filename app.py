@@ -89,15 +89,20 @@ def get(phone, name):
 
 @app.route('/<phone>', methods=['GET'])
 def save(phone):
-  return '''
-  <!doctype html>
-  <title>Upload new File</title>
-  <h1>Upload new File</h1>
-  <form method=post action='/{}' enctype=multipart/form-data>
-  <input type=file name=file>
-  <input type=submit value=Upload>
-  </form>
-  '''.format(phone)
+  try:
+    check_phone(phone)
+    return '''
+    <!doctype html>
+    <title>Upload new File</title>
+    <h1>Upload new File</h1>
+    <form method=post action='/{}' enctype=multipart/form-data>
+    <input type=file name=file>
+    <input type=submit value=Upload>
+    </form>
+    '''.format(phone)
+  except Exception as ex:
+    logger.error(ex)
+    return str(ex)
 
 
 @app.route('/', methods=['GET'])
