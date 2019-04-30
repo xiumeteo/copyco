@@ -1,43 +1,93 @@
-from flask import Flask, request
+from flask import Flask, request, send_file
 from xiumeteo.base.redis import redis_client
 from werkzeug.utils import secure_filename
 import requests
 import random
 import logging
+import io
 
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-words = requests.get('http://svnweb.freebsd.org/csrg/share/dict/words?view=co&content-type=text/plain').content.decode("utf-8").lower().splitlines()
+words = requests.get('http://svnweb.freebsd.org/csrg/share/dict/words?view=co&content-type=text/plain') \
+    .content.decode("utf-8")  \
+    .lower() \
+    .splitlines()
 
 def word():
   return random.choice(words)
 
+def cache_for_delete(uri):
+  from datetime import datetime as time
+  redis_client.sadd('cache_for_delete', {'key':uri, 'time':str(time.now())})
+
+def cache_for_serving(uri):
+  key = uri + '.served'
+  served = redis_client.get(key)
+  if served == None:
+    redis_client.set(key, 'no')
+  if served == b'no':
+    redis_client.set(key, 'yes')
+
+def save_type(uri, filename):
+  key = uri + '.filename'
+  logger.error(key)
+
+  return redis_client.set(key, filename)
+
+def get_type(uri):
+  logger.error(uri)
+  return redis_client.get(uri + '.filename').decode('utf-8')
+
+def type(filename):
+  return filename.rsplit('.', 1)[1].lower()
+
 @app.route('/put/<phone>', methods=['POST'])
-def put(phone):
+def put(phone='9999471847'):
   file = request.files['file']
-  logger.error(file)
+  # logger.error(file)
   if not file:
     return 404
   filename = '{}-{}'.format(word(), word())
   stream = file.stream.read()
-  logger.error(filename) 
-  logger.error(stream) 
+  # logger.error(filename) 
+  # logger.error(stream) 
   if not stream:
     return 400
-  return '{}, {}'.format(redis_client.set('{}.{}'.format(phone, filename), stream), filename)
+  key = '{}.{}'.format(phone, filename)
+  saved = redis_client.set(key, stream)
+  save_type(key, file.filename)
+  if saved:
+    cache_for_delete(key)
+    return filename
+  return 400
 
-@app.route('/save', methods=['GET'])
-def save():
+
+@app.route('/get/<phone>/<name>', methods=['GET'])
+def get(phone, name):
+  key = '{}.{}'.format(phone, name)
+  content = redis_client.get(key)
+  filename = get_type(key)
+  if not filename:
+    return 404
+  cache_for_serving(key)
+  resp = send_file(io.BytesIO(content), attachment_filename=filename) 
+  redis_client.delete(key)
+  return resp
+
+
+
+@app.route('/save/<phone>', methods=['GET'])
+def save(phone):
   return '''
   <!doctype html>
   <title>Upload new File</title>
   <h1>Upload new File</h1>
-  <form method=post action='/put/9999471847' enctype=multipart/form-data>
+  <form method=post action='/put/{}' enctype=multipart/form-data>
   <input type=file name=file>
   <input type=submit value=Upload>
   </form>
-  '''
+  '''.format(phone)
   
   
