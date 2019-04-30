@@ -1,6 +1,7 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, flash
 from xiumeteo.base.redis import redis_client
-from werkzeug.utils import secure_filename
+
+from xiumeteo.base.sms import send_filename, check_phone
 import requests
 import random
 import logging
@@ -43,28 +44,36 @@ def get_type(uri):
 def type(filename):
   return filename.rsplit('.', 1)[1].lower()
 
-@app.route('/put/<phone>', methods=['POST'])
+@app.route('/<phone>', methods=['POST'])
 def put(phone='9999471847'):
-  file = request.files['file']
-  # logger.error(file)
-  if not file:
-    return 404
-  filename = '{}-{}'.format(word(), word())
-  stream = file.stream.read()
-  # logger.error(filename) 
-  # logger.error(stream) 
-  if not stream:
-    return 400
-  key = '{}.{}'.format(phone, filename)
-  saved = redis_client.set(key, stream)
-  save_type(key, file.filename)
-  if saved:
-    cache_for_delete(key)
-    return filename
+  try:
+    phone = check_phone(phone)
+    if not phone:
+      flash('Bas request')
+    file = request.files['file']
+    # logger.error(file)
+    if not file:
+      return 404
+    filename = '{}-{}'.format(word(), word())
+    stream = file.stream.read()
+    # logger.error(filename) 
+    # logger.error(stream) 
+    if not stream:
+      return 400
+    key = '{}.{}'.format(phone, filename)
+    saved = redis_client.set(key, stream)
+    save_type(key, file.filename)
+    if saved:
+      cache_for_delete(key)
+      send_filename(phone, filename, request.base_url)
+      return 'OK'
+  except Exception as ex:
+    logger.error(ex)
+    return str(ex)
   return 400
 
 
-@app.route('/get/<phone>/<name>', methods=['GET'])
+@app.route('/<phone>/<name>', methods=['GET'])
 def get(phone, name):
   key = '{}.{}'.format(phone, name)
   content = redis_client.get(key)
@@ -78,16 +87,24 @@ def get(phone, name):
 
 
 
-@app.route('/save/<phone>', methods=['GET'])
+@app.route('/<phone>', methods=['GET'])
 def save(phone):
   return '''
   <!doctype html>
   <title>Upload new File</title>
   <h1>Upload new File</h1>
-  <form method=post action='/put/{}' enctype=multipart/form-data>
+  <form method=post action='/{}' enctype=multipart/form-data>
   <input type=file name=file>
   <input type=submit value=Upload>
   </form>
   '''.format(phone)
+
+
+@app.route('/', methods=['GET'])
+def home():
+  return '''
+  <h1>Upload new File</h1>
+  
+  '''
   
   
