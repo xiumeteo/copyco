@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+ALLOWED_FILES = {'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xsx', 'png', 'txt', 'csv'}
+
 words = requests.get('http://svnweb.freebsd.org/csrg/share/dict/words?view=co&content-type=text/plain') \
     .content.decode("utf-8")  \
     .lower() \
@@ -31,6 +33,13 @@ def cache_for_serving(uri):
   if served == b'no':
     redis_client.set(key, 'yes')
 
+def check_cache_for_serving(uri):
+  key = uri + '.served'
+  served = redis_client.get(key)
+  if served == None or served == b'yes':
+    redis_client.delete(key)
+    raise Exception('The file has been served and destroyed')
+
 def save_type(uri, filename):
   key = uri + '.filename'
   logger.error(key)
@@ -48,9 +57,9 @@ def type(filename):
 def put(phone='9999471847'):
   try:
     phone = check_phone(phone)
-    if not phone:
-      flash('Bas request')
     file = request.files['file']
+    if not type(file.filename) in ALLOWED_FILES:
+      raise Exception('Invalid filetype ALLOWED:{}'.format(ALLOWED_FILES))
     # logger.error(file)
     if not file:
       return 404
@@ -75,15 +84,21 @@ def put(phone='9999471847'):
 
 @app.route('/<phone>/<name>', methods=['GET'])
 def get(phone, name):
-  key = '{}.{}'.format(phone, name)
-  content = redis_client.get(key)
-  filename = get_type(key)
-  if not filename:
-    return 404
-  cache_for_serving(key)
-  resp = send_file(io.BytesIO(content), attachment_filename=filename) 
-  redis_client.delete(key)
-  return resp
+  try:
+    phone = check_phone(phone)
+    key = '{}.{}'.format(phone, name)
+    check_cache_for_serving(key)
+    content = redis_client.get(key)
+    filename = get_type(key)
+    if not filename:
+      return 404
+    cache_for_serving(key)
+    resp = send_file(io.BytesIO(content), attachment_filename=filename) 
+    redis_client.delete(key)
+    return resp
+  except Exception as ex:
+    logger.error(ex)
+    return str(ex)
 
 
 
