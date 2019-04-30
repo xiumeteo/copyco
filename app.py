@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-ALLOWED_FILES = {'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xsx', 'png', 'txt', 'csv'}
+ALLOWED_FILES = {'jpeg', 'jpg', 'gif', 'pdf', 'doc', 'docx', 'xsx', 'png', 'txt', 'csv'}
 
 words = requests.get('http://svnweb.freebsd.org/csrg/share/dict/words?view=co&content-type=text/plain') \
     .content.decode("utf-8")  \
@@ -77,10 +77,8 @@ def get(phone, name):
     if not content:
       return 'File already served and destroyed'
     filename = get_type(key)
-    
-    resp = send_file(io.BytesIO(content), attachment_filename=filename) 
     redis_client.delete(key)
-    return resp
+    return send_file(io.BytesIO(content), attachment_filename=filename)
   except Exception as ex:
     logger.error(ex)
     return str(ex)
