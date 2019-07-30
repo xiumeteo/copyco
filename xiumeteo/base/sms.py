@@ -30,10 +30,9 @@ def check_phone(phone):
 
 
 def auth(phone):
-  logger.error(os.getenv('AUTHY_KEY'))
   resp = authy_api.phones.verification_start(
     phone_number=phone, 
-    country_code=52, 
+    country_code=phone[0:2], 
     via='sms')
   if not resp.ok():
     logger.error(resp.content)
