@@ -114,7 +114,7 @@ def signup_add_phone():
       app.logger.error('Client with phone number attempted signup {}'.format(phone))
       return 'That client is already here.'
 
-    resp = True #auth(phone) 
+    resp = auth(phone) 
     app.logger.info(resp)
     if not resp:
       return 'Please provide a valid phone number'
