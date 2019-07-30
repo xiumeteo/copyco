@@ -70,15 +70,15 @@ def put_file(phone):
   return 400
 
 
-@app.route('/<phone>/<code>/<name>', methods=['GET'])
+@app.route('/<phone>/<name>', methods=['GET'])
 def get_file(phone, code, name):
   try:
     user = User.load(phone)
     if not user:
       return '<h1>Sorry user not found.</h1>'
 
-    if not user.match(code):
-      return 'Auth code is not right, please try again'
+    # if not user.match(code):
+    #   return 'Auth code is not right, please try again'
 
     filename, content = user.load_content(name)
     print(filename)
