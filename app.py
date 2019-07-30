@@ -1,14 +1,12 @@
 from flask import Flask, request, send_file, flash, redirect, url_for
 from xiumeteo.base.redis import client as redis_client
-from xiumeteo.base.models import User
+from xiumeteo.base.models import User, filetype
 
 from xiumeteo.base.sms import send_filename, check_phone, check_auth, auth
 import requests
 import random
 import logging
 import io
-
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -21,8 +19,8 @@ def add_file(phone):
     return '<h1>Sorry user not found.</h1>'
 
   return '''<!doctype html>
-    <title>You are almost done!</title>
-    <h1>You are almost done!</h1>
+    <title>Submit a file</title>
+    <h1>Submit a file</h1>
     <form method=post action='/{}' enctype=multipart/form-data>
     <input type=file name=file>
     <h2>Enter verification code on ur auth app</h2>
@@ -46,14 +44,16 @@ def put_file(phone):
     file = request.files['file']
     if not file:
       return 'A file must be present'
-    if not type(file.filename) in ALLOWED_FILES:
+    
+    file_type = filetype(file.filename)
+    if not file_type in ALLOWED_FILES:
       raise Exception('Invalid filetype ALLOWED:{}'.format(ALLOWED_FILES))
     
     stream = file.stream.read()
     if not stream:
       return 'Problems reading the file'
 
-    saved, filename = user.store(stream)
+    saved, filename = user.store(stream, file_type)
     if not saved:
       return 'Problems while storing the file.'
 
@@ -65,7 +65,7 @@ def put_file(phone):
         format(filename, request.base_url, filename)
   
   except Exception as ex:
-    logger.error(ex)
+    app.logger.error(ex)
     return str(ex)
   return 400
 
@@ -81,9 +81,10 @@ def get_file(phone, code, name):
       return 'Auth code is not right, please try again'
 
     filename, content = user.load_content(name)
-    return send_file(io.BytesIO(content), attachment_filename=filename)
+    print(filename)
+    return send_file(io.BytesIO(content), attachment_filename='{}.{}'.format(name, filename))
   except Exception as ex:
-    logger.error(ex)
+    app.logger.error(ex)
     return str(ex)
 
 
@@ -92,29 +93,31 @@ def signup_check_code(phone):
   try:
     code = request.form['code']
     if not check_auth(phone, code):
-      return 'Auth code is not right, please try again, go to {}'.format(url_for('signup'))
+      return 'Auth code is not right, please try again, go to {}'.format(url_for('signup_init'))
     
     user = User.create(phone)
-    redirect("https://www.qrcoder.co.uk/api/v1/?text={}".format(user.generate_provision_uri))
+    return redirect("https://www.qrcoder.co.uk/api/v1/?text={}".format(user.provision_uri))
   except Exception as ex:
-    logger.error(ex)
+    app.logger.error(ex)
     return str(ex)
-  return 400
 
 
-@app.route('/signup', methods=['GET'])
+@app.route('/signup', methods=['POST'])
 def signup_add_phone():
   try:
     phone = request.form.get('phone')
-    if phone:
-      if User.load(phone):
-        logger.error('Client with phone number attempted signup {}'.format(phone))
-        return 'That client is already here.'
+    app.logger.info('Attempting to sign up {}'.format(phone))
+    if not phone:
+      return 'No phone is present, please change that.'
+    
+    if User.load(phone):
+      app.logger.error('Client with phone number attempted signup {}'.format(phone))
+      return 'That client is already here.'
 
-      resp = auth(phone)
-      logger.info(resp)
-      if not resp:
-        return 'Please provide a valid phone number'
+    resp = True #auth(phone) 
+    app.logger.info(resp)
+    if not resp:
+      return 'Please provide a valid phone number'
 
     return '''
     <!doctype html>
@@ -127,7 +130,7 @@ def signup_add_phone():
     </form>
     '''.format(phone)
   except Exception as ex:
-    logger.error(ex)
+    app.logger.error(ex)
     return str(ex)
 
 
@@ -137,7 +140,7 @@ def signup_init():
   <h1>Put ur phone using the international format</h1>
   <form method=post action='/signup' >
     Telephone
-    <input type=tel name=code>
+    <input type=tel name=phone>
     <input type=submit value=Sign up>
   </form>
   '''
