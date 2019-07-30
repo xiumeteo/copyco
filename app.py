@@ -147,21 +147,22 @@ def signup_init():
 
 @app.route('/', methods=['GET'])
 def home():
+  base = request.base_url
   return '''
   <h1>Welcome to copyco</h1>
   <ol>
-    <li>Go to {} and fill the detals</li>
+    <li>Go to {}/init and fill the details</li>
     <li>Enter the verification code</li>
     <li>Scan the qr code using Google Auth, Msoft Auth or similar apps</li>
   </ol>
   <h2>Once ur account is setup, you can add files using</h2>
   <ol>
-    <li>Go to /<phone> and upload ur files!</li>
-    <li>Go to /<phone>/<passphrase> </li>
+    <li>Go to {}/phone_number and upload ur files!</li>
+    <li>Go to {}/phone_number/passphrase </li>
     <li>Download ur files</li>
   </ol>
   <h2>The file will be destroyed after your download</h2>
   <h2>The file will be destroyed after a day of submission</h2>
-  '''
+  '''.format(base, base, base)
   
   
