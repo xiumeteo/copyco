@@ -71,7 +71,7 @@ def put_file(phone):
 
 
 @app.route('/<phone>/<name>', methods=['GET'])
-def get_file(phone, code, name):
+def get_file(phone, name):
   try:
     user = User.load(phone)
     if not user:
