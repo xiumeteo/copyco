@@ -29,19 +29,19 @@ class StoredItem:
         return file_key + '.file_type'
 
     @staticmethod
-    def _key(self, file_key):
+    def _key(file_key):
         return file_key + '.stored_item'
 
     @staticmethod
     def create(stream, filetype, user):
         filename = '{}-{}'.format(word(), word())
-        item = StoredItem(filename, user, stream)
+        item = StoredItem(filename, filetype, user, stream)
         item.save()
         return item
 
     @staticmethod
     def load_content(user, filename):
-        file_key = StoredItem._file_key(filename)
+        file_key = StoredItem._file_key(user, filename)
         stored_item_key = StoredItem._key(file_key)
         
         stored_item_json = redis_client.get_json(stored_item_key)
@@ -52,31 +52,33 @@ class StoredItem:
         if not stream:
             raise Exception('File already served and destroyed')
         
-        filetype = StoredItem.get_type(stored_item_json['filetype'])
+        filetype = stored_item_json['filetype']
         return StoredItem(filename, filetype, user, stream)
 
     @staticmethod
     def delete(stored_item_key):
         stored_item_json = redis_client.get_json(stored_item_key)
+        print(stored_item_json)
         redis_client.delete(stored_item_json['file_key'])
         redis_client.delete(stored_item_json['filetype_key'])
         redis_client.delete(stored_item_json['key'])      
 
     def __init__(self, filename, filetype, user, stream):
         self.stream = stream
-        self.file_key = StoredItem._file_key(self.filename)
         self.filename = filename
-        self.filetype = self.filetype
+        self.file_key = StoredItem._file_key(user, self.filename)
+        self.filetype = filetype
         self.filetype_key = StoredItem._file_type_key(self.file_key)
         self.user_key = user.key
         self.key = StoredItem._key(self.file_key)
 
     def save(self):
+        redis_client.cache_for_deletion(self.key)
         redis_client.save(self.file_key, self.stream)
         redis_client.save(self.filetype_key, self.filetype)
         self.stream = None
         redis_client.save_json(self.key, self.__dict__)
-        redis_client.cache_for_deletion(self.key)
+        
 
 
 
@@ -95,7 +97,7 @@ class User:
         if not json:
             return None
         user = User(phone, json['hash'])
-        user.files = json['files']
+        user.files = list(json['files'])
         return user
 
     @staticmethod
@@ -107,7 +109,7 @@ class User:
         self.country_code = phone[0:2]
         self.hash = hash
         self.key = User.user_key(self.phone)
-        self.files = {}
+        self.files = list()
 
     @property
     def provision_uri(self):
@@ -126,11 +128,12 @@ class User:
             raise Exception('File does not belong to this user')
 
         self.files.remove(item.key)
+        self.save()
         return item
     
     def store(self, stream, file_type):
         item = StoredItem.create(stream, file_type, self)
-        self.files.add(item.key)
+        self.files.append(item.key)
         self.save()
         return item
 

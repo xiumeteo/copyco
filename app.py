@@ -62,7 +62,7 @@ def put_file(phone):
               You can retrieve your file at 
             <h2>{}/{}<h2>
             <br><h2>WARN THIS IS A SINGLE USE LINK</h2>'''. \
-        format(filename, request.base_url, filename)
+        format(item.filename, request.base_url, item.filename)
   
   except Exception as ex:
     app.logger.error(ex)

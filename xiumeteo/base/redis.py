@@ -12,18 +12,23 @@ class Client():
     self.client.sadd('cache_for_delete', data)
 
   def to_date(self, str_date):
-    pass
+    return time.strptime(str_date, "%Y-%m-%d %H:%M:%S.%f")
+
+  def delete(self, key):
+    return self.client.delete(key)
 
   def delete_all(self):
     items = self.client.smembers('cache_for_delete')
+    from xiumeteo.base.models import StoredItem
     for item in items:
       data = item.decode('utf-8')
       stored_item = json.loads(data)
-      stored_item_ts = to_date(stored_item['time'])
-      if stored_item_ts >= time.timedelta(days=1):
+      stored_item_ts = self.to_date(stored_item['time'])
+      import datetime
+      # ayer
+      if time.now() - stored_item_ts >= datetime.timedelta(days=1):
         self.client.srem('cache_for_delete', item)
         stored_item_key = stored_item['key']
-        from xiumeteo.base.models import StoredItem
         StoredItem.delete(stored_item_key)    
 
   def get_str(self, key):
