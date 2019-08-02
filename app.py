@@ -53,8 +53,8 @@ def put_file(phone):
     if not stream:
       return 'Problems reading the file'
 
-    saved, filename = user.store(stream, file_type)
-    if not saved:
+    item = user.store(stream, file_type)
+    if not item:
       return 'Problems while storing the file.'
 
       # send_filename(phone, filename, request.base_url)
@@ -80,9 +80,9 @@ def get_file(phone, name):
     # if not user.match(code):
     #   return 'Auth code is not right, please try again'
 
-    filename, content = user.load_content(name)
-    print(filename)
-    return send_file(io.BytesIO(content), attachment_filename='{}.{}'.format(name, filename))
+    stored_item = user.load_content(name)
+    print(stored_item.filename)
+    return send_file(io.BytesIO(stored_item.stream), attachment_filename='{}.{}'.format(name, stored_item.filetype))
   except Exception as ex:
     app.logger.error(ex)
     return str(ex)

@@ -7,8 +7,24 @@ class Client():
   def __init__(self):
     self.client = Redis.from_url(os.getenv('REDIS_URL'))
 
-  def cache_for_delete(self, uri):
-    self.client.sadd('cache_for_delete', {"key":"uri", "time":str(time.now())})
+  def cache_for_deletion(self, stored_item_key):
+    data = json.dumps({"key":stored_item_key, "time":str(time.now())})
+    self.client.sadd('cache_for_delete', data)
+
+  def to_date(self, str_date):
+    pass
+
+  def delete_all(self):
+    items = self.client.smembers('cache_for_delete')
+    for item in items:
+      data = item.decode('utf-8')
+      stored_item = json.loads(data)
+      stored_item_ts = to_date(stored_item['time'])
+      if stored_item_ts >= time.timedelta(days=1):
+        self.client.srem('cache_for_delete', item)
+        stored_item_key = stored_item['key']
+        from xiumeteo.base.models import StoredItem
+        StoredItem.delete(stored_item_key)    
 
   def get_str(self, key):
     data = self.client.get(key)
