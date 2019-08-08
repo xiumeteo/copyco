@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, flash, redirect, url_for
+from flask import Flask, request, send_file, flash, redirect, url_for, render_template
 from xiumeteo.base.redis import client as redis_client
 from xiumeteo.base.models import User, filetype
 
@@ -12,22 +12,21 @@ app = Flask(__name__)
 
 ALLOWED_FILES = {'jpeg', 'jpg', 'gif', 'pdf', 'doc', 'docx', 'xsx', 'png', 'txt', 'csv'}
 
+def user_not_found():
+  return render_template('user_not_found.html')
+
+def invalid_file():
+  return render_template('invalid_file.html', filetype=ALLOWED_FILES)
+
+def problems_with_file():
+  return render_template('problem_with_file.html')
 
 @app.route('/<phone>', methods=['GET'])
 def add_file(phone):
   if not User.load(phone):
-    return '<h1>Sorry user not found.</h1>'
+    return user_not_found()
 
-  return '''<!doctype html>
-    <title>Submit a file</title>
-    <h1>Submit a file</h1>
-    <form method=post action='/{}' enctype=multipart/form-data>
-    <input type=file name=file>
-    <h2>Enter verification code on ur auth app</h2>
-    <input type=text name=code>
-    <input type=submit value=Upload>
-    </form>
-    '''.format(phone)
+  return render_template('add_file_form.html', phone=phone)
 
 
 @app.route('/<phone>', methods=['POST'])
@@ -36,33 +35,28 @@ def put_file(phone):
     code = request.form['code']
     user = User.load(phone)
     if not user:
-      return '<h1>Sorry user not found.</h1>'
+      return user_not_found()
 
     if not user.match(code):
-      return '<h1>Code is wrong.</h1>'
+      return render_template('invalid_code.html')
     
     file = request.files['file']
     if not file:
-      return 'A file must be present'
+      return invalid_file()
     
     file_type = filetype(file.filename)
     if not file_type in ALLOWED_FILES:
-      raise Exception('Invalid filetype ALLOWED:{}'.format(ALLOWED_FILES))
+      return invalid_file()
     
     stream = file.stream.read()
     if not stream:
-      return 'Problems reading the file'
+      return problems_with_file()
 
     item = user.store(stream, file_type)
     if not item:
-      return 'Problems while storing the file.'
+      return problems_with_file()
 
-      # send_filename(phone, filename, request.base_url)
-    return '''You saved a file with name <h1>{}</h1>. 
-              You can retrieve your file at 
-            <h2>{}/{}<h2>
-            <br><h2>WARN THIS IS A SINGLE USE LINK</h2>'''. \
-        format(item.filename, request.base_url, item.filename)
+    return render_template('save_file_success.html', filename=item.filename, base=request.base_url)
   
   except Exception as ex:
     app.logger.error(ex)
@@ -75,10 +69,7 @@ def get_file(phone, name):
   try:
     user = User.load(phone)
     if not user:
-      return '<h1>Sorry user not found.</h1>'
-
-    # if not user.match(code):
-    #   return 'Auth code is not right, please try again'
+      return user_not_found()
 
     stored_item = user.load_content(name)
     print(stored_item.filename)
@@ -119,16 +110,7 @@ def signup_add_phone():
     if not resp:
       return 'Please provide a valid phone number'
 
-    return '''
-    <!doctype html>
-    <title>You are almost done!</title>
-    <h1>You are almost done!</h1>
-    <form method=post action='/signup/{}' enctype=form-data>
-    <h2>Enter verification code that we send to your phone</h2>
-    <input type=text name=code>
-    <input type=submit value=Upload>
-    </form>
-    '''.format(phone)
+    return render_template('signup_add_phone.html', phone=phone)
   except Exception as ex:
     app.logger.error(ex)
     return str(ex)
@@ -136,33 +118,10 @@ def signup_add_phone():
 
 @app.route('/init', methods=['GET'])
 def signup_init():
-  return '''
-  <h1>Put ur phone using the international format</h1>
-  <form method=post action='/signup' >
-    Telephone
-    <input type=tel name=phone>
-    <input type=submit value=Sign up>
-  </form>
-  '''
+  return render_template('signup_init.html')
 
 @app.route('/', methods=['GET'])
 def home():
   base = request.base_url
-  return '''
-  <h1>Welcome to copyco</h1>
-  <ol>
-    <li>Go to {}/init and fill the details</li>
-    <li>Enter the verification code</li>
-    <li>Scan the qr code using Google Auth, Msoft Auth or similar apps</li>
-  </ol>
-  <h2>Once ur account is setup, you can add files using</h2>
-  <ol>
-    <li>Go to {}/phone_number and upload ur files!</li>
-    <li>Go to {}/phone_number/passphrase </li>
-    <li>Download ur files</li>
-  </ol>
-  <h2>The file will be destroyed after your download</h2>
-  <h2>The file will be destroyed after a day of submission</h2>
-  '''.format(base, base, base)
-  
+  return render_template('index.html', base=base)
   
