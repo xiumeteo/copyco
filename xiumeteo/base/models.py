@@ -58,7 +58,6 @@ class StoredItem:
     @staticmethod
     def delete(stored_item_key):
         stored_item_json = redis_client.get_json(stored_item_key)
-        print(stored_item_json)
         redis_client.delete(stored_item_json['file_key'])
         redis_client.delete(stored_item_json['filetype_key'])
         redis_client.delete(stored_item_json['key'])      

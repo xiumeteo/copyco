@@ -2,6 +2,9 @@ from redis import Redis
 import os
 from datetime import datetime as time
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Client():
   def __init__(self):
@@ -17,16 +20,17 @@ class Client():
   def delete(self, key):
     return self.client.delete(key)
 
-  def delete_all(self):
+  def delete_all(self, hours=24):
     items = self.client.smembers('cache_for_delete')
+    print('Found items in the cache : {}'.format(items))
     from xiumeteo.base.models import StoredItem
     for item in items:
       data = item.decode('utf-8')
       stored_item = json.loads(data)
       stored_item_ts = self.to_date(stored_item['time'])
       import datetime
-      # ayer
-      if time.now() - stored_item_ts >= datetime.timedelta(days=1):
+      if time.now() - stored_item_ts >= datetime.timedelta(hours=hours):
+        print('Removing {} '.format(item))
         self.client.srem('cache_for_delete', item)
         stored_item_key = stored_item['key']
         StoredItem.delete(stored_item_key)    

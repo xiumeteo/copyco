@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, flash, redirect, url_for, render_template
+import click
 from xiumeteo.base.redis import client as redis_client
 from xiumeteo.base.models import User, filetype
 
@@ -7,8 +8,26 @@ import requests
 import random
 import logging
 import io
+from flask_apscheduler import APScheduler
+
+
+def cleanup_task():
+  print("Running")
+  redis_client.delete_all()
+
 
 app = Flask(__name__)
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.add_job(func=cleanup_task, trigger='interval', hours=6, id='cleanup old files')
+scheduler.start()
+app.run()
+
+@app.cli.command("cleanup-old-files")
+@click.argument("hours")
+def cleanup_old_files(hours=24):
+  print('asdljfsadjf')
+  redis_client.delete_all(int(hours))
 
 ALLOWED_FILES = {'jpeg', 'jpg', 'gif', 'pdf', 'doc', 'docx', 'xsx', 'png', 'txt', 'csv'}
 
@@ -124,4 +143,5 @@ def signup_init():
 def home():
   base = request.base_url
   return render_template('index.html', base=base)
-  
+
+
