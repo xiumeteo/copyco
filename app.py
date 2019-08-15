@@ -21,7 +21,7 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.add_job(func=cleanup_task, trigger='interval', hours=6, id='cleanup old files')
 scheduler.start()
-app.run()
+
 
 @app.cli.command("cleanup-old-files")
 @click.argument("hours")
