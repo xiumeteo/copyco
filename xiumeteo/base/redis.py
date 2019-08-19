@@ -58,13 +58,3 @@ class Client():
     return self.client.set(key, json.dumps(obj))
 
 client = Client()
-  
-  
-def purge_files():
-  # now = time.now()
-  # docs = redis_client.smembers()
-  # docs_timeout = {}
-  # for item in docs:
-  # 	doc = json.loads(item.decode('utf-8').replace("'". '"'))
-  #   if doc['time']
-  pass

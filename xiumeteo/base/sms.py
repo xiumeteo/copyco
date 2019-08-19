@@ -11,23 +11,6 @@ client = Client(account_sid, auth_token)
 
 authy_api = AuthyApiClient(os.getenv('AUTHY_KEY'))
 
-def send_filename(to, key, base_url):
-  # resp = client.messages \
-  #               .create(
-  #                       body="You have a temp file with name '{}'' you can recover it using this url {} . WARN THIS IS SINGLE USE" \
-  #                             .format(key, '{}/{}'.format(base_url, key)),
-  #                       from_='+15734851574',
-  #                       to=to
-  #       )
-
-  # return resp.sid 
-  pass
-
-def check_phone(phone):
-   # resp = client.lookups.phone_numbers('+52{}'.format(phone)).fetch()
-   # return resp.phone_number
-   pass
-
 
 def auth(phone):
   resp = authy_api.phones.verification_start(
